@@ -1,0 +1,320 @@
+:root {
+  color-scheme: dark;
+  --uai-red: #e60012;
+  --uai-deep-red: #b60020;
+  --uai-yellow: #ffc20e;
+  --ink: #ffffff;
+  --muted: #a4a7ae;
+  --field: #242426;
+  --panel: #151516;
+  --panel-soft: #1d1d20;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 51% 8%, rgba(230, 0, 18, 0.34), transparent 22%),
+    linear-gradient(90deg, #111 0%, #171719 36%, #320005 62%, #120f10 100%);
+}
+
+.page-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 18px 58px;
+}
+
+.portal-card {
+  width: min(100%, 496px);
+  min-height: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 96px 28px 64px;
+  border-radius: 0 0 18px 18px;
+  background: var(--panel);
+  box-shadow: 0 0 72px rgba(230, 0, 18, 0.28);
+  text-align: center;
+}
+
+.brand-header {
+  display: grid;
+  grid-template-columns: auto 1px auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-content: center;
+  column-gap: 14px;
+  margin-bottom: 46px;
+  color: var(--uai-red);
+  text-transform: uppercase;
+}
+
+.brand-header p {
+  grid-column: 1 / -1;
+  margin: 16px 0 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.anniversary {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto;
+  width: 72px;
+  color: var(--uai-red);
+}
+
+.years {
+  font-size: 50px;
+  font-weight: 900;
+  line-height: 0.78;
+  letter-spacing: 0;
+}
+
+.years-label {
+  justify-self: end;
+  margin-right: 5px;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.anniversary::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--uai-yellow);
+  box-shadow: 0 0 0 7px #fff;
+}
+
+.divider {
+  width: 1px;
+  height: 66px;
+  background: var(--uai-red);
+}
+
+.uai-logo {
+  position: relative;
+  width: 82px;
+  height: 60px;
+  color: var(--uai-red);
+}
+
+.uai-word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 0.72;
+  letter-spacing: 0;
+}
+
+.uai-dot {
+  position: absolute;
+  right: 1px;
+  top: 7px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--uai-yellow);
+}
+
+.uai-name {
+  position: absolute;
+  right: 0;
+  bottom: 7px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: lowercase;
+}
+
+h1 {
+  max-width: 395px;
+  margin: 0 0 20px;
+  font-size: 27px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.intro {
+  max-width: 390px;
+  margin: 0 0 30px;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.access-form {
+  width: min(100%, 412px);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
+}
+
+input {
+  width: 100%;
+  height: 52px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 18px;
+  color: #fff;
+  background: var(--field);
+}
+
+input:focus {
+  outline: 3px solid rgba(230, 0, 18, 0.24);
+  border-color: var(--uai-red);
+}
+
+input::placeholder {
+  color: #8d929a;
+}
+
+button,
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 18px;
+  font-size: 16px;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cpf-field {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+}
+
+.cpf-field span {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.primary-button {
+  width: 100%;
+  max-width: 232px;
+  align-self: center;
+  margin-top: 2px;
+  color: #fff;
+  background: linear-gradient(180deg, #e40b22, #b7081e);
+  box-shadow: 0 16px 28px rgba(230, 0, 18, 0.22);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.secondary-button {
+  flex: 1;
+  color: #fff;
+  background: #25252a;
+}
+
+.status {
+  min-height: 20px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.status.error {
+  color: #b00020;
+}
+
+.status.success {
+  color: #60d394;
+}
+
+.instagram-box {
+  width: min(100%, 412px);
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.instagram-box p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.instagram-box .instagram-note {
+  color: #fff;
+  font-size: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.actions button {
+  flex: 1;
+  margin-top: 0;
+  color: #fff;
+  background: var(--uai-red);
+}
+
+footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  color: #8d8f96;
+  text-align: center;
+  font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .page-shell {
+    align-items: flex-start;
+    padding: 0 0 58px;
+  }
+
+  .portal-card {
+    min-height: calc(100vh - 58px);
+    width: 100%;
+    border-radius: 0;
+    padding: 62px 24px 42px;
+  }
+
+  h1 {
+    font-size: 26px;
+  }
+
+  .brand-header {
+    margin-bottom: 36px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  footer {
+    font-size: 12px;
+  }
+}

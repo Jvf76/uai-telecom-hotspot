@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>UAI Telecom Hotspot</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="portal-card" aria-label="Portal UAI Telecom">
+        <header class="brand-header">
+          <div class="anniversary">
+            <span class="years">20</span>
+            <span class="years-label">anos</span>
+          </div>
+          <span class="divider"></span>
+          <div class="uai-logo" aria-label="UAI Telecom">
+            <span class="uai-word">uai</span>
+            <span class="uai-dot"></span>
+            <span class="uai-name">uai telecom</span>
+          </div>
+          <p>Um universo de caminhos</p>
+        </header>
+
+        <h1>Bem-vindo à Internet da Uai Telecom</h1>
+        <p class="intro">Experimente a <strong>velocidade e qualidade</strong> da melhor conexão da cidade.</p>
+
+        <form id="cpfForm" class="access-form">
+          <input id="name" name="name" type="text" autocomplete="name" placeholder="Seu nome completo">
+          <input id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" placeholder="(00) 0 0000-0000">
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="email@dominio.com">
+
+          <label class="cpf-field" for="cpf">
+            <span>CPF do assinante</span>
+            <input id="cpf" name="cpf" type="text" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required>
+          </label>
+
+          <button type="submit" id="cpfButton" class="primary-button">Acessar Internet Grátis</button>
+          <p id="status" class="status" role="status" aria-live="polite"></p>
+        </form>
+
+        <div id="instagramBox" class="instagram-box" hidden>
+          <p id="instagramText">Para acessar, siga a UAI Telecom no Instagram.</p>
+          <p class="instagram-note">Neste momento, a navegação está liberada somente para abrir o Instagram da UAI Telecom.</p>
+          <div class="actions">
+            <a id="instagramLink" class="secondary-button" href="#" target="_blank" rel="noopener">Abrir Instagram</a>
+            <button id="releaseButton" type="button">Já segui</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>© 2026 Uai Telecom - Conectando você ao que importa</footer>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
