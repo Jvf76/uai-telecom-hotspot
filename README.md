@@ -52,6 +52,7 @@ Depois de importar o script, envie `routeros/login.html` para a pasta `hotspot` 
 - `INSTAGRAM_PROFILE_URL`: URL do perfil da UAI Telecom.
 - `ADMIN_USER`: usuário do painel.
 - `ADMIN_PASSWORD`: senha do painel.
+- `ADMIN_SESSION_SECRET`: segredo usado para assinar o cookie de sessão do painel.
 
 ## Painel de leads
 

@@ -2,6 +2,7 @@ const leadsBody = document.querySelector('#leadsBody');
 const searchInput = document.querySelector('#search');
 const refreshButton = document.querySelector('#refresh');
 const exportButton = document.querySelector('#exportCsv');
+const logoutButton = document.querySelector('#logout');
 const totalCount = document.querySelector('#totalCount');
 const releasedCount = document.querySelector('#releasedCount');
 const instagramCount = document.querySelector('#instagramCount');
@@ -62,6 +63,10 @@ function render() {
 
 async function loadLeads() {
   const response = await fetch('/api/admin/leads');
+  if (response.status === 401) {
+    window.location.href = '/admin/login';
+    return;
+  }
   if (!response.ok) throw new Error('Falha ao carregar leads.');
   const payload = await response.json();
   leads = payload.leads || [];
@@ -95,6 +100,10 @@ function exportCsv() {
 searchInput.addEventListener('input', render);
 refreshButton.addEventListener('click', loadLeads);
 exportButton.addEventListener('click', exportCsv);
+logoutButton.addEventListener('click', async () => {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  window.location.href = '/admin/login';
+});
 
 loadLeads().catch((error) => {
   leadsBody.innerHTML = `<tr><td colspan="7">${error.message}</td></tr>`;

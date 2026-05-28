@@ -38,6 +38,7 @@ export const config = {
   },
   admin: {
     user: process.env.ADMIN_USER || 'admin',
-    password: process.env.ADMIN_PASSWORD || 'troque-esta-senha'
+    password: process.env.ADMIN_PASSWORD || 'troque-esta-senha',
+    sessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || 'troque-esta-senha'
   }
 };

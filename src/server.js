@@ -1,5 +1,6 @@
 import http from 'node:http';
 import os from 'node:os';
+import crypto from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { config } from './config.js';
@@ -23,20 +24,69 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+function sendRedirect(res, location) {
+  res.writeHead(302, { Location: location });
+  res.end();
+}
+
+function parseCookies(req) {
+  return Object.fromEntries(
+    String(req.headers.cookie || '')
+      .split(';')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [key, ...value] = part.split('=');
+        return [key, decodeURIComponent(value.join('='))];
+      })
+  );
+}
+
+function sign(value) {
+  return crypto
+    .createHmac('sha256', config.admin.sessionSecret)
+    .update(value)
+    .digest('base64url');
+}
+
+function createAdminSession() {
+  const payload = Buffer.from(JSON.stringify({
+    user: config.admin.user,
+    expiresAt: Date.now() + 8 * 60 * 60 * 1000
+  })).toString('base64url');
+
+  return `${payload}.${sign(payload)}`;
+}
+
 function isAdmin(req) {
+  const token = parseCookies(req).uai_admin;
+  if (token) {
+    const [payload, signature] = token.split('.');
+    if (payload && signature && signature === sign(payload)) {
+      try {
+        const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+        if (session.user === config.admin.user && session.expiresAt > Date.now()) {
+          return true;
+        }
+      } catch {
+        return false;
+      }
+    }
+  }
+
   const header = req.headers.authorization || '';
   if (!header.startsWith('Basic ')) return false;
   const credentials = Buffer.from(header.slice(6), 'base64').toString('utf8');
   return credentials === `${config.admin.user}:${config.admin.password}`;
 }
 
-function requireAdmin(req, res) {
+function requireAdmin(req, res, mode = 'page') {
   if (isAdmin(req)) return true;
-  res.writeHead(401, {
-    'WWW-Authenticate': 'Basic realm="UAI Hotspot"',
-    'Content-Type': 'text/plain; charset=utf-8'
-  });
-  res.end('Autenticacao obrigatoria');
+  if (mode === 'json') {
+    sendJson(res, 401, { error: 'Sessao expirada. Faça login novamente.' });
+    return false;
+  }
+  sendRedirect(res, '/admin/login');
   return false;
 }
 
@@ -132,13 +182,38 @@ async function handleCheckCpf(req, res, url) {
 }
 
 async function handleAdminLeads(req, res) {
-  if (!requireAdmin(req, res)) return;
+  if (!requireAdmin(req, res, 'json')) return;
 
   try {
     sendJson(res, 200, { leads: await listLeads() });
   } catch (error) {
     sendJson(res, 500, { error: error.message });
   }
+}
+
+async function handleAdminLogin(req, res) {
+  try {
+    const body = await readJson(req);
+    if (body.user !== config.admin.user || body.password !== config.admin.password) {
+      return sendJson(res, 401, { error: 'Usuario ou senha invalidos.' });
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Set-Cookie': `uai_admin=${encodeURIComponent(createAdminSession())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800`
+    });
+    res.end(JSON.stringify({ ok: true }));
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+function handleAdminLogout(res) {
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Set-Cookie': 'uai_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
+  });
+  res.end(JSON.stringify({ ok: true }));
 }
 
 async function handleInstagramRelease(req, res, url) {
@@ -183,8 +258,23 @@ const server = http.createServer(async (req, res) => {
     return serveStatic(req, res, url);
   }
 
+  if (req.method === 'GET' && url.pathname === '/admin/login') {
+    if (isAdmin(req)) return sendRedirect(res, '/admin');
+    req.url = '/admin-login.html';
+    url.pathname = '/admin-login.html';
+    return serveStatic(req, res, url);
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
     return handleAdminLeads(req, res);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/admin/login') {
+    return handleAdminLogin(req, res);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
+    return handleAdminLogout(res);
   }
 
   if (req.method === 'POST' && url.pathname === '/api/check-cpf') {
