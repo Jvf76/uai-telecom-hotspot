@@ -200,6 +200,44 @@ td small {
   box-shadow: 0 24px 72px rgba(230, 0, 18, 0.2);
 }
 
+.login-logo {
+  position: relative;
+  width: 112px;
+  height: 72px;
+  margin-bottom: 14px;
+  color: var(--red);
+}
+
+.login-logo-word {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 0.72;
+  letter-spacing: 0;
+}
+
+.login-logo-dot {
+  position: absolute;
+  right: 3px;
+  top: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffc20e;
+}
+
+.login-logo-name {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: lowercase;
+}
+
 .login-card p {
   margin: 10px 0 24px;
   color: var(--muted);
