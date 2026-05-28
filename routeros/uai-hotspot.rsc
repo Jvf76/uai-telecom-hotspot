@@ -23,16 +23,16 @@ add bridge=bridge-hotspot interface=ether10
 add interface=ether1 disabled=no comment="WAN recebe IP do roteador principal"
 
 /ip address
-add address=10.10.10.1/24 interface=bridge-hotspot comment="Gateway hotspot UAI"
+add address=10.10.10.1/21 interface=bridge-hotspot comment="Gateway hotspot UAI"
 
 /ip pool
-add name=pool-hotspot-uai ranges=10.10.10.20-10.10.10.254
+add name=pool-hotspot-uai ranges=10.10.8.10-10.10.9.254,10.10.10.2-10.10.15.254
 
 /ip dhcp-server
 add name=dhcp-hotspot-uai interface=bridge-hotspot address-pool=pool-hotspot-uai lease-time=1h disabled=no
 
 /ip dhcp-server network
-add address=10.10.10.0/24 gateway=10.10.10.1 dns-server=1.1.1.1,8.8.8.8 comment="Rede clientes hotspot UAI"
+add address=10.10.8.0/21 gateway=10.10.10.1 dns-server=1.1.1.1,8.8.8.8 comment="Rede clientes hotspot UAI"
 
 /ip firewall nat
 add chain=srcnat out-interface=ether1 action=masquerade comment="NAT hotspot UAI para WAN ether1"

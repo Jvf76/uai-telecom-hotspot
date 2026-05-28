@@ -1,4 +1,8 @@
 import { config } from '../config.js';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+
+const bindingsFile = join(process.cwd(), 'data', 'access-bindings.json');
 
 function authHeader() {
   return `Basic ${Buffer.from(`${config.mikrotik.user}:${config.mikrotik.password}`).toString('base64')}`;
@@ -27,7 +31,72 @@ async function mikrotikRequest(path, options = {}) {
   return response.json();
 }
 
-export async function allowClient({ ip, mac, comment }) {
+function durationToMs(value = '') {
+  const match = String(value).trim().match(/^(\d+)\s*(m|h|d)?$/i);
+  if (!match) return 0;
+  const amount = Number(match[1]);
+  const unit = (match[2] || 'm').toLowerCase();
+  if (unit === 'd') return amount * 24 * 60 * 60 * 1000;
+  if (unit === 'h') return amount * 60 * 60 * 1000;
+  return amount * 60 * 1000;
+}
+
+async function readTrackedBindings() {
+  try {
+    return JSON.parse(await readFile(bindingsFile, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+async function writeTrackedBindings(bindings) {
+  await mkdir(dirname(bindingsFile), { recursive: true });
+  await writeFile(bindingsFile, JSON.stringify(bindings, null, 2), 'utf8');
+}
+
+async function trackBinding(binding) {
+  if (!binding.id || !binding.expiresAt) return;
+  const bindings = await readTrackedBindings();
+  const filtered = bindings.filter((item) => item.id !== binding.id);
+  filtered.push(binding);
+  await writeTrackedBindings(filtered);
+}
+
+async function removeBinding(id) {
+  await mikrotikRequest('/ip/hotspot/ip-binding/remove', {
+    method: 'POST',
+    body: JSON.stringify({ '.id': id })
+  });
+}
+
+export async function cleanupExpiredBindings() {
+  if (!config.mikrotik.enabled) return { removed: 0 };
+
+  const now = Date.now();
+  const bindings = await readTrackedBindings();
+  const active = [];
+  let removed = 0;
+
+  for (const binding of bindings) {
+    if (new Date(binding.expiresAt).getTime() > now) {
+      active.push(binding);
+      continue;
+    }
+
+    try {
+      await removeBinding(binding.id);
+      removed += 1;
+    } catch {
+      removed += 1;
+    }
+  }
+
+  if (removed) await writeTrackedBindings(active);
+  return { removed };
+}
+
+export async function allowClient({ ip, mac, comment, ttl }) {
   if (!ip && !mac) {
     return {
       skipped: true,
@@ -42,17 +111,31 @@ export async function allowClient({ ip, mac, comment }) {
     };
   }
 
+  await cleanupExpiredBindings().catch(() => {});
+
+  const ttlMs = durationToMs(ttl);
+  const expiresAt = ttlMs ? new Date(Date.now() + ttlMs).toISOString() : '';
   const payload = {
     type: 'bypassed',
-    comment: comment || 'uai-hotspot'
+    comment: [comment || 'uai-hotspot', expiresAt ? `expira ${expiresAt}` : ''].filter(Boolean).join(' | ')
   };
 
   if (ip) payload.address = ip;
   if (mac) payload['mac-address'] = mac;
   payload.server = 'hotspot-uai';
 
-  return mikrotikRequest('/ip/hotspot/ip-binding', {
+  const result = await mikrotikRequest('/ip/hotspot/ip-binding', {
     method: 'PUT',
     body: JSON.stringify(payload)
   });
+
+  await trackBinding({
+    id: result['.id'],
+    ip: ip || '',
+    mac: mac || '',
+    expiresAt,
+    comment: payload.comment
+  });
+
+  return result;
 }

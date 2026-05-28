@@ -6,7 +6,7 @@ import { extname, join, normalize } from 'node:path';
 import { config } from './config.js';
 import { isValidCpf, onlyDigits } from './utils/cpf.js';
 import { findCustomerByCpf } from './services/ixc.js';
-import { allowClient } from './services/mikrotik.js';
+import { allowClient, cleanupExpiredBindings } from './services/mikrotik.js';
 import { listLeads, recordLead } from './services/leads.js';
 
 const publicDir = join(process.cwd(), 'public');
@@ -140,7 +140,8 @@ async function handleCheckCpf(req, res, url) {
       await allowClient({
         ip: context.ip,
         mac: context.mac,
-        comment: `uai-hotspot cpf ${cpf} ativo`
+        comment: `uai-hotspot cpf ${cpf} ativo`,
+        ttl: config.access.activeCustomerTtl
       });
       await recordLead({
         ...context,
@@ -224,7 +225,8 @@ async function handleInstagramRelease(req, res, url) {
     await allowClient({
       ip: context.ip,
       mac: context.mac,
-      comment: 'uai-hotspot instagram declarado'
+      comment: 'uai-hotspot instagram declarado',
+      ttl: config.access.instagramTtl
     });
     await recordLead({
       ...context,
@@ -304,3 +306,12 @@ server.listen(config.port, '0.0.0.0', () => {
     console.log(`Rede:  ${address}`);
   }
 });
+
+cleanupExpiredBindings().catch((error) => {
+  console.warn(`Falha ao limpar liberacoes expiradas: ${error.message}`);
+});
+setInterval(() => {
+  cleanupExpiredBindings().catch((error) => {
+    console.warn(`Falha ao limpar liberacoes expiradas: ${error.message}`);
+  });
+}, 60 * 1000);

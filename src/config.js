@@ -18,6 +18,10 @@ if (existsSync(envFile)) {
 export const config = {
   port: Number(process.env.PORT || 3000),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://10.10.10.2:3000',
+  access: {
+    activeCustomerTtl: process.env.ACTIVE_CUSTOMER_ACCESS_TTL || '4h',
+    instagramTtl: process.env.INSTAGRAM_ACCESS_TTL || '5m'
+  },
   ixc: {
     baseUrl: process.env.IXC_BASE_URL || '',
     token: process.env.IXC_TOKEN || '',

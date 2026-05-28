@@ -7,7 +7,14 @@ Sistema Node para portal hotspot UAI Telecom com consulta de CPF no IXC e libera
 1. Deixe o PC do portal acessivel pela MikroTik. Neste ambiente ele esta em `192.168.30.100`.
 2. Copie `.env.example` para `.env`.
 3. Ajuste no `.env` os dados reais do IXC e, quando a RouterOS REST estiver ativa, coloque `MIKROTIK_ENABLED=true`.
-4. Rode:
+4. Ajuste o tempo de liberação, se necessário. Por padrão:
+
+```text
+ACTIVE_CUSTOMER_ACCESS_TTL=4h
+INSTAGRAM_ACCESS_TTL=5m
+```
+
+5. Rode:
 
 ```powershell
 npm start
@@ -34,7 +41,7 @@ A configuração base está em `routeros/uai-hotspot.rsc`:
 - `ether1`: WAN recebendo DHCP do roteador principal.
 - `ether2` a `ether10`: bridge LAN hotspot.
 - Gateway LAN: `10.10.10.1/24`.
-- DHCP clientes: `10.10.10.20-10.10.10.254`.
+- DHCP clientes: rede `10.10.8.0/21`, com gateway `10.10.10.1`.
 - NAT via `ether1`.
 - Hotspot na bridge.
 - Walled garden para o portal `10.10.10.2` e domínios do Instagram/Meta.
@@ -44,6 +51,8 @@ Depois de importar o script, envie `routeros/login.html` para a pasta `hotspot` 
 ## Variáveis principais
 
 - `IXC_BASE_URL`: URL base do IXC. Neste projeto: `https://sistema.uaitelecom.com.br/webservice/v1`.
+- `ACTIVE_CUSTOMER_ACCESS_TTL`: tempo de internet liberada para cliente ativo, por padrão `4h`.
+- `INSTAGRAM_ACCESS_TTL`: tempo de internet liberada após confirmação do Instagram, por padrão `5m`.
 - `IXC_TOKEN`: token da API IXC.
 - `IXC_CUSTOMER_ENDPOINT`: por padrão `/cliente`.
 - `IXC_ACTIVE_STATUSES`: valores considerados ativos, por padrão `Ativo,A`.
