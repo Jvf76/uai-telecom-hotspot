@@ -55,33 +55,22 @@ function redirectWhenReady(url) {
   }, 900);
 }
 
+function showInstagramStep(message) {
+  const text = message || 'Para liberar a internet completa, siga a UAI Telecom no Instagram.';
+  instagramLink.href = instagramUrl;
+  instagramLink.textContent = 'Abrir Instagram';
+  instagramText.textContent = `${text} Abra o Instagram, siga a UAI Telecom e depois toque em "Ja segui".`;
+  setStatus(text, text.includes('nao esta ativo') ? 'error' : '');
+
+  instagramBox.hidden = false;
+  openedInstagram = false;
+  releaseButton.disabled = true;
+}
+
 instagramLink.addEventListener('click', (event) => {
-  event.preventDefault();
-  instagramLink.setAttribute('aria-disabled', 'true');
-  setStatus('Liberando 5 minutos para abrir o Instagram...');
-
-  fetch('/api/instagram-window', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(contextPayload({ cpf: cpfInput.value }))
-  })
-    .then(async (response) => {
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Falha ao liberar Instagram.');
-
-      openedInstagram = true;
-      releaseButton.disabled = false;
-      setStatus('Abrimos uma janela de 5 minutos. Siga @uaitelecom, volte aqui e toque em "Ja segui".', 'success');
-      setTimeout(() => {
-        window.location.href = instagramUrl;
-      }, 700);
-    })
-    .catch((error) => {
-      setStatus(error.message, 'error');
-    })
-    .finally(() => {
-      instagramLink.removeAttribute('aria-disabled');
-    });
+  openedInstagram = true;
+  releaseButton.disabled = false;
+  setStatus('Abra o perfil @uaitelecom, siga a UAI Telecom, volte aqui e toque em "Ja segui".', 'success');
 });
 
 cpfInput.addEventListener('input', () => {
@@ -115,12 +104,7 @@ cpfForm.addEventListener('submit', async (event) => {
     }
 
     instagramUrl = payload.instagramUrl || instagramUrl;
-    instagramLink.href = instagramUrl;
-    instagramText.textContent = `${payload.message} Para liberar a internet completa, siga a UAI Telecom no Instagram e depois toque em "Ja segui".`;
-    instagramBox.hidden = false;
-    openedInstagram = false;
-    releaseButton.disabled = true;
-    setStatus(payload.message, payload.message.includes('nao esta ativo') ? 'error' : '');
+    showInstagramStep(payload.message);
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {
