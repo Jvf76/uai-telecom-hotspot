@@ -54,9 +54,12 @@ function redirectWhenReady(url) {
   }, 900);
 }
 
-instagramLink.addEventListener('click', () => {
+instagramLink.addEventListener('click', (event) => {
+  event.preventDefault();
   openedInstagram = true;
   releaseButton.disabled = false;
+  setStatus('Abra o perfil @uaitelecom no Instagram. Depois volte aqui e toque em "Já segui".');
+  window.location.href = 'instagram://user?username=uaitelecom';
 });
 
 cpfInput.addEventListener('input', () => {
@@ -89,7 +92,7 @@ cpfForm.addEventListener('submit', async (event) => {
       return;
     }
 
-    instagramLink.href = payload.instagramUrl;
+    instagramLink.href = 'instagram://user?username=uaitelecom';
     instagramText.textContent = `${payload.message} Para liberar a internet completa, siga a UAI Telecom no Instagram e depois toque em "Já segui".`;
     instagramBox.hidden = false;
     openedInstagram = false;

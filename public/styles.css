@@ -267,6 +267,12 @@ button:disabled {
   font-size: 14px;
 }
 
+.instagram-box .instagram-handle {
+  color: var(--uai-yellow);
+  font-size: 15px;
+  font-weight: 800;
+}
+
 .actions {
   display: flex;
   gap: 12px;
