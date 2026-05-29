@@ -226,6 +226,11 @@ button:disabled {
   opacity: 0.72;
 }
 
+.secondary-button[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
 .secondary-button {
   flex: 1;
   color: #fff;
@@ -303,14 +308,19 @@ footer {
 @media (max-width: 760px) {
   .page-shell {
     align-items: flex-start;
-    padding: 0 0 58px;
+    min-height: auto;
+    padding: 0;
   }
 
   .portal-card {
-    min-height: calc(100vh - 58px);
+    min-height: auto;
     width: 100%;
     border-radius: 0;
-    padding: 62px 24px 42px;
+    padding: 62px 24px 32px;
+  }
+
+  .primary-button {
+    max-width: 320px;
   }
 
   h1 {
@@ -326,6 +336,9 @@ footer {
   }
 
   footer {
+    position: static;
+    padding: 14px 18px 18px;
+    background: var(--panel);
     font-size: 12px;
   }
 }

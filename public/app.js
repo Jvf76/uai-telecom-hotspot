@@ -10,8 +10,7 @@ const instagramBox = document.querySelector('#instagramBox');
 const instagramLink = document.querySelector('#instagramLink');
 const instagramText = document.querySelector('#instagramText');
 const releaseButton = document.querySelector('#releaseButton');
-const instagramDeepLink = 'instagram://user?username=uaitelecom';
-const instagramAndroidIntent = 'intent://user?username=uaitelecom#Intent;scheme=instagram;package=com.instagram.android;end';
+let instagramUrl = 'https://www.instagram.com/uaitelecom/';
 let openedInstagram = false;
 
 function onlyDigits(value) {
@@ -58,11 +57,31 @@ function redirectWhenReady(url) {
 
 instagramLink.addEventListener('click', (event) => {
   event.preventDefault();
-  openedInstagram = true;
-  releaseButton.disabled = false;
-  setStatus('Abra o perfil @uaitelecom no Instagram. Depois volte aqui e toque em "Já segui".');
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  window.location.href = isAndroid ? instagramAndroidIntent : instagramDeepLink;
+  instagramLink.setAttribute('aria-disabled', 'true');
+  setStatus('Liberando 5 minutos para abrir o Instagram...');
+
+  fetch('/api/instagram-window', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(contextPayload({ cpf: cpfInput.value }))
+  })
+    .then(async (response) => {
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Falha ao liberar Instagram.');
+
+      openedInstagram = true;
+      releaseButton.disabled = false;
+      setStatus('Abrimos uma janela de 5 minutos. Siga @uaitelecom, volte aqui e toque em "Ja segui".', 'success');
+      setTimeout(() => {
+        window.location.href = instagramUrl;
+      }, 700);
+    })
+    .catch((error) => {
+      setStatus(error.message, 'error');
+    })
+    .finally(() => {
+      instagramLink.removeAttribute('aria-disabled');
+    });
 });
 
 cpfInput.addEventListener('input', () => {
@@ -95,12 +114,13 @@ cpfForm.addEventListener('submit', async (event) => {
       return;
     }
 
-    instagramLink.href = /Android/i.test(navigator.userAgent) ? instagramAndroidIntent : instagramDeepLink;
-    instagramText.textContent = `${payload.message} Para liberar a internet completa, siga a UAI Telecom no Instagram e depois toque em "Já segui".`;
+    instagramUrl = payload.instagramUrl || instagramUrl;
+    instagramLink.href = instagramUrl;
+    instagramText.textContent = `${payload.message} Para liberar a internet completa, siga a UAI Telecom no Instagram e depois toque em "Ja segui".`;
     instagramBox.hidden = false;
     openedInstagram = false;
     releaseButton.disabled = true;
-    setStatus(payload.message, payload.message.includes('não está ativo') ? 'error' : '');
+    setStatus(payload.message, payload.message.includes('nao esta ativo') ? 'error' : '');
   } catch (error) {
     setStatus(error.message, 'error');
   } finally {

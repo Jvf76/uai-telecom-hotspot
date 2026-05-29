@@ -217,6 +217,35 @@ function handleAdminLogout(res) {
   res.end(JSON.stringify({ ok: true }));
 }
 
+async function handleInstagramWindow(req, res, url) {
+  try {
+    const body = await readJson(req);
+    const context = getClientContext(url, body);
+
+    await allowClient({
+      ip: context.ip,
+      mac: context.mac,
+      comment: 'uai-hotspot janela instagram',
+      ttl: config.access.instagramTtl
+    });
+    await recordLead({
+      ...context,
+      cpf: body.cpf || '',
+      status: 'instagram_window',
+      releaseMethod: 'instagram_window',
+      message: 'Janela temporaria para abrir Instagram'
+    });
+
+    sendJson(res, 200, {
+      status: 'instagram_window',
+      message: 'Instagram liberado por 5 minutos.',
+      redirect: config.instagram.profileUrl
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 async function handleInstagramRelease(req, res, url) {
   try {
     const body = await readJson(req);
@@ -226,7 +255,7 @@ async function handleInstagramRelease(req, res, url) {
       ip: context.ip,
       mac: context.mac,
       comment: 'uai-hotspot instagram declarado',
-      ttl: config.access.instagramTtl
+      ttl: config.access.activeCustomerTtl
     });
     await recordLead({
       ...context,
@@ -281,6 +310,10 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'POST' && url.pathname === '/api/check-cpf') {
     return handleCheckCpf(req, res, url);
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/instagram-window') {
+    return handleInstagramWindow(req, res, url);
   }
 
   if (req.method === 'POST' && url.pathname === '/api/instagram-release') {
