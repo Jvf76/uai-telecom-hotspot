@@ -18,10 +18,22 @@ function formatCpf(value = '') {
     .replace(/\.(\d{3})(\d)/, '.$1-$2');
 }
 
+function formatPhone(value = '') {
+  const digits = String(value).replace(/\D/g, '').slice(0, 11);
+  if (!digits) return '';
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 3)} ${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
 function formatDate(value) {
   return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short'
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
   }).format(new Date(value));
 }
 
@@ -52,7 +64,7 @@ function render() {
     <tr>
       <td>${formatDate(lead.createdAt)}</td>
       <td>${lead.name || '-'}<small>${lead.customerName || ''}</small></td>
-      <td>${lead.phone || '-'}</td>
+      <td>${formatPhone(lead.phone) || '-'}</td>
       <td>${lead.email || '-'}</td>
       <td>${formatCpf(lead.cpf) || '-'}</td>
       <td><span class="badge ${lead.status}">${statusLabel(lead)}</span><small>${lead.message || ''}</small></td>
@@ -74,11 +86,11 @@ async function loadLeads() {
 }
 
 function exportCsv() {
-  const header = ['data', 'nome', 'telefone', 'email', 'cpf', 'status', 'metodo', 'ip', 'mac', 'cliente_ixc'];
+  const header = ['Data', 'Nome', 'Telefone', 'Email', 'CPF', 'Status', 'Metodo', 'IP', 'MAC', 'Cliente IXC'];
   const lines = visibleLeads().map((lead) => [
-    lead.createdAt,
+    formatDate(lead.createdAt),
     lead.name,
-    lead.phone,
+    formatPhone(lead.phone),
     lead.email,
     formatCpf(lead.cpf),
     statusLabel(lead),
@@ -86,9 +98,10 @@ function exportCsv() {
     lead.ip,
     lead.mac,
     lead.customerName
-  ].map((value) => `"${String(value || '').replaceAll('"', '""')}"`).join(','));
+  ].map((value) => `"${String(value || '').replaceAll('"', '""')}"`).join(';'));
 
-  const blob = new Blob([[header.join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });
+  const csv = `\ufeff${[header.join(';'), ...lines].join('\r\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
