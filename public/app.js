@@ -10,6 +10,8 @@ const instagramBox = document.querySelector('#instagramBox');
 const instagramLink = document.querySelector('#instagramLink');
 const instagramText = document.querySelector('#instagramText');
 const releaseButton = document.querySelector('#releaseButton');
+const instagramDeepLink = 'instagram://user?username=uaitelecom';
+const instagramAndroidIntent = 'intent://user?username=uaitelecom#Intent;scheme=instagram;package=com.instagram.android;end';
 let openedInstagram = false;
 
 function onlyDigits(value) {
@@ -59,7 +61,8 @@ instagramLink.addEventListener('click', (event) => {
   openedInstagram = true;
   releaseButton.disabled = false;
   setStatus('Abra o perfil @uaitelecom no Instagram. Depois volte aqui e toque em "Já segui".');
-  window.location.href = 'instagram://user?username=uaitelecom';
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  window.location.href = isAndroid ? instagramAndroidIntent : instagramDeepLink;
 });
 
 cpfInput.addEventListener('input', () => {
@@ -92,7 +95,7 @@ cpfForm.addEventListener('submit', async (event) => {
       return;
     }
 
-    instagramLink.href = 'instagram://user?username=uaitelecom';
+    instagramLink.href = /Android/i.test(navigator.userAgent) ? instagramAndroidIntent : instagramDeepLink;
     instagramText.textContent = `${payload.message} Para liberar a internet completa, siga a UAI Telecom no Instagram e depois toque em "Já segui".`;
     instagramBox.hidden = false;
     openedInstagram = false;

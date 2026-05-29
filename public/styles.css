@@ -273,6 +273,11 @@ button:disabled {
   font-weight: 800;
 }
 
+.instagram-box .instagram-help {
+  color: #d7d9df;
+  font-size: 13px;
+}
+
 .actions {
   display: flex;
   gap: 12px;
