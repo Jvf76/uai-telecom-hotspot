@@ -30,6 +30,7 @@ add name=pool-hotspot-uai ranges=10.10.8.10-10.10.9.254,10.10.10.2-10.10.15.254
 
 /ip dhcp-server
 add name=dhcp-hotspot-uai interface=bridge-hotspot address-pool=pool-hotspot-uai lease-time=1h disabled=no
+set dhcp-hotspot-uai lease-script=":if (\$leaseBound = 1) do={ /ip hotspot ip-binding remove [find where mac-address=\$leaseActMAC and comment~\"uai-hotspot janela instagram\"] }"
 
 /ip dhcp-server network
 add address=10.10.8.0/21 gateway=10.10.10.1 dns-server=1.1.1.1,8.8.8.8 comment="Rede clientes hotspot UAI"
