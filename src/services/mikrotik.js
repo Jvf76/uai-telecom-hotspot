@@ -136,6 +136,10 @@ export async function cleanupExpiredBindings() {
 
 export async function allowClient({ ip, mac, comment, ttl }) {
   if (!ip && !mac) {
+    if (config.mikrotik.enabled) {
+      throw new Error('IP/MAC do aparelho não informado; não foi possível liberar na MikroTik.');
+    }
+
     return {
       skipped: true,
       message: 'IP/MAC não informado; liberação na MikroTik ignorada para teste direto.'

@@ -11,6 +11,9 @@ const instagramLink = document.querySelector('#instagramLink');
 const instagramText = document.querySelector('#instagramText');
 const releaseButton = document.querySelector('#releaseButton');
 const browserLink = document.querySelector('#browserLink');
+const releaseBox = document.querySelector('#releaseBox');
+const releaseMessage = document.querySelector('#releaseMessage');
+const continueLink = document.querySelector('#continueLink');
 let instagramUrl = 'https://www.instagram.com/uaitelecom/';
 let openedInstagram = false;
 let instagramToken = '';
@@ -59,12 +62,6 @@ function setStatus(message, type = '') {
   statusEl.className = `status ${type}`.trim();
 }
 
-function redirectWhenReady(url) {
-  setTimeout(() => {
-    window.location.href = url || 'http://neverssl.com';
-  }, 900);
-}
-
 function androidIntentUrl(url) {
   const scheme = url.protocol.replace(':', '') || 'http';
   const path = `${url.host}${url.pathname}${url.search}`;
@@ -87,6 +84,18 @@ function setupBrowserLink() {
     browserLink.href = androidIntentUrl(portalUrl);
     browserLink.removeAttribute('target');
   }
+}
+
+function showReleaseSuccess(payload = {}) {
+  const redirectUrl = payload.redirect || 'http://neverssl.com';
+
+  cpfForm.hidden = true;
+  instagramBox.hidden = true;
+  if (browserLink) browserLink.hidden = true;
+  releaseBox.hidden = false;
+  releaseMessage.textContent = payload.message || 'Seu acesso foi liberado. Agora voce pode navegar normalmente.';
+  continueLink.href = redirectUrl;
+  setStatus('');
 }
 
 function showInstagramStep(message) {
@@ -154,8 +163,7 @@ cpfForm.addEventListener('submit', async (event) => {
     if (!response.ok) throw new Error(payload.error || 'Falha ao consultar CPF.');
 
     if (payload.status === 'released') {
-      setStatus(payload.message, 'success');
-      redirectWhenReady(payload.redirect);
+      showReleaseSuccess(payload);
       return;
     }
 
@@ -191,8 +199,7 @@ releaseButton.addEventListener('click', async () => {
     const payload = await response.json();
 
     if (!response.ok) throw new Error(payload.error || 'Falha ao liberar acesso.');
-    setStatus(payload.message, 'success');
-    redirectWhenReady(payload.redirect);
+    showReleaseSuccess(payload);
   } catch (error) {
     setStatus(error.message, 'error');
     releaseButton.disabled = false;
