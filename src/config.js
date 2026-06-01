@@ -15,12 +15,13 @@ if (existsSync(envFile)) {
   }
 }
 
+const instagramConfirmDelaySeconds = Number.parseInt(process.env.INSTAGRAM_CONFIRM_DELAY_SECONDS || '15', 10);
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://10.10.10.2:3000',
   access: {
-    activeCustomerTtl: process.env.ACTIVE_CUSTOMER_ACCESS_TTL || '4h',
-    instagramTtl: process.env.INSTAGRAM_ACCESS_TTL || '5m'
+    activeCustomerTtl: process.env.ACTIVE_CUSTOMER_ACCESS_TTL || '4h'
   },
   ixc: {
     baseUrl: process.env.IXC_BASE_URL || '',
@@ -38,7 +39,8 @@ export const config = {
     enabled: String(process.env.MIKROTIK_ENABLED || 'false').toLowerCase() === 'true'
   },
   instagram: {
-    profileUrl: process.env.INSTAGRAM_PROFILE_URL || 'https://www.instagram.com/uaitelecom/'
+    profileUrl: process.env.INSTAGRAM_PROFILE_URL || 'https://www.instagram.com/uaitelecom/',
+    confirmDelaySeconds: Number.isFinite(instagramConfirmDelaySeconds) ? Math.max(0, instagramConfirmDelaySeconds) : 15
   },
   admin: {
     user: process.env.ADMIN_USER || 'admin',

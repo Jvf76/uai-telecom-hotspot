@@ -1,9 +1,9 @@
 # UAI Telecom Hotspot - RouterOS
 # Ajuste PORTAL_IP para o IP do PC onde o Node vai rodar.
-# Neste ambiente o PC esta no lado WAN/principal em 192.168.30.100.
+# Ajuste IP_DO_PORTAL para o IP do PC/VM onde o Node vai rodar.
 
-:local PORTAL_IP "192.168.30.100"
-:local PORTAL_URL "http://192.168.30.100:3000"
+:local PORTAL_IP "IP_DO_PORTAL"
+:local PORTAL_URL "http://IP_DO_PORTAL:3000"
 
 /interface bridge
 add name=bridge-hotspot comment="UAI Telecom Hotspot LAN"
@@ -31,6 +31,11 @@ add name=pool-hotspot-uai ranges=10.10.8.10-10.10.9.254,10.10.10.2-10.10.15.254
 /ip dhcp-server
 add name=dhcp-hotspot-uai interface=bridge-hotspot address-pool=pool-hotspot-uai lease-time=1h disabled=no
 set dhcp-hotspot-uai lease-script=":if (\$leaseBound = 1) do={ /ip hotspot ip-binding remove [find where mac-address=\$leaseActMAC and comment~\"uai-hotspot janela instagram\"] }"
+
+# Remove liberacoes temporarias antigas que usavam ip-binding para o Instagram.
+/ip hotspot ip-binding
+remove [find where comment~"uai-hotspot janela instagram"]
+remove [find where comment="uai-hotspot instagram declarado"]
 
 /ip dhcp-server network
 add address=10.10.8.0/21 gateway=10.10.10.1 dns-server=1.1.1.1,8.8.8.8 comment="Rede clientes hotspot UAI"

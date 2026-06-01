@@ -10,8 +10,18 @@ const instagramBox = document.querySelector('#instagramBox');
 const instagramLink = document.querySelector('#instagramLink');
 const instagramText = document.querySelector('#instagramText');
 const releaseButton = document.querySelector('#releaseButton');
+const browserLink = document.querySelector('#browserLink');
 let instagramUrl = 'https://www.instagram.com/uaitelecom/';
 let openedInstagram = false;
+let instagramToken = '';
+let confirmDelaySeconds = 15;
+
+function isCaptivePortalBrowser() {
+  const ua = navigator.userAgent || '';
+  return /CaptivePortal|CaptiveNetwork|CaptiveNetworkSupport|wispr|NetworkConnectivity|wv\)/i.test(ua);
+}
+
+const isBrowserMode = params.get('browser') === '1' || !isCaptivePortalBrowser();
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
@@ -55,6 +65,30 @@ function redirectWhenReady(url) {
   }, 900);
 }
 
+function androidIntentUrl(url) {
+  const scheme = url.protocol.replace(':', '') || 'http';
+  const path = `${url.host}${url.pathname}${url.search}`;
+  return `intent://${path}#Intent;scheme=${scheme};S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
+}
+
+function setupBrowserLink() {
+  if (!browserLink) return;
+
+  const portalUrl = new URL(window.location.href);
+  portalUrl.searchParams.set('browser', '1');
+  browserLink.href = portalUrl.href;
+
+  cpfForm.hidden = !isBrowserMode;
+  browserLink.hidden = isBrowserMode;
+
+  if (isBrowserMode) return;
+
+  if (/Android/i.test(navigator.userAgent)) {
+    browserLink.href = androidIntentUrl(portalUrl);
+    browserLink.removeAttribute('target');
+  }
+}
+
 function showInstagramStep(message) {
   const text = message || 'Para liberar a internet completa, siga a UAI Telecom no Instagram.';
   instagramLink.href = instagramUrl;
@@ -67,10 +101,30 @@ function showInstagramStep(message) {
   releaseButton.disabled = true;
 }
 
-instagramLink.addEventListener('click', (event) => {
-  openedInstagram = true;
-  releaseButton.disabled = false;
-  setStatus('Abra o perfil @uaitelecom, siga a UAI Telecom, volte aqui e toque em "Ja segui".', 'success');
+instagramLink.addEventListener('click', async (event) => {
+  event.preventDefault();
+  releaseButton.disabled = true;
+
+  try {
+    const response = await fetch('/api/instagram-opened', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(contextPayload({
+        cpf: cpfInput.value,
+        instagramToken
+      }))
+    });
+    const payload = await response.json();
+
+    if (!response.ok) throw new Error(payload.error || 'Falha ao registrar abertura do Instagram.');
+    openedInstagram = true;
+    releaseButton.disabled = false;
+    setStatus(`Abra o perfil @uaitelecom, siga a UAI Telecom, volte aqui e aguarde ${confirmDelaySeconds} segundos antes de tocar em "Ja segui".`, 'success');
+    window.location.href = instagramUrl;
+  } catch (error) {
+    openedInstagram = false;
+    setStatus(error.message, 'error');
+  }
 });
 
 cpfInput.addEventListener('input', () => {
@@ -80,6 +134,8 @@ cpfInput.addEventListener('input', () => {
 phoneInput?.addEventListener('input', () => {
   phoneInput.value = formatPhone(phoneInput.value);
 });
+
+setupBrowserLink();
 
 cpfForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -104,6 +160,8 @@ cpfForm.addEventListener('submit', async (event) => {
     }
 
     instagramUrl = payload.instagramUrl || instagramUrl;
+    instagramToken = payload.instagramToken || '';
+    confirmDelaySeconds = Number(payload.confirmDelaySeconds ?? confirmDelaySeconds);
     showInstagramStep(payload.message);
   } catch (error) {
     setStatus(error.message, 'error');
@@ -125,7 +183,10 @@ releaseButton.addEventListener('click', async () => {
     const response = await fetch('/api/instagram-release', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(contextPayload({ cpf: cpfInput.value }))
+      body: JSON.stringify(contextPayload({
+        cpf: cpfInput.value,
+        instagramToken
+      }))
     });
     const payload = await response.json();
 

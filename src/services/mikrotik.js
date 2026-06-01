@@ -70,6 +70,43 @@ async function removeBinding(id) {
   });
 }
 
+async function listBindings() {
+  return mikrotikRequest('/ip/hotspot/ip-binding');
+}
+
+function shouldRemoveOldInstagramBinding(binding, now) {
+  const comment = String(binding.comment || '');
+  if (comment.includes('uai-hotspot janela instagram')) return true;
+  if (!comment.includes('uai-hotspot')) return false;
+  if (!comment.includes('expira ')) return true;
+
+  const match = comment.match(/expira\s+([^\s|]+)/);
+  if (!match) return false;
+
+  const expiresAt = new Date(match[1]).getTime();
+  return Number.isFinite(expiresAt) && expiresAt <= now;
+}
+
+async function cleanupRouterBindings(activeTrackedIds, now) {
+  const bindings = await listBindings();
+  let removed = 0;
+
+  for (const binding of bindings) {
+    const id = binding['.id'];
+    if (!id || activeTrackedIds.has(id)) continue;
+    if (!shouldRemoveOldInstagramBinding(binding, now)) continue;
+
+    try {
+      await removeBinding(id);
+      removed += 1;
+    } catch {
+      removed += 1;
+    }
+  }
+
+  return removed;
+}
+
 export async function cleanupExpiredBindings() {
   if (!config.mikrotik.enabled) return { removed: 0 };
 
@@ -93,7 +130,8 @@ export async function cleanupExpiredBindings() {
   }
 
   if (removed) await writeTrackedBindings(active);
-  return { removed };
+  const routerRemoved = await cleanupRouterBindings(new Set(active.map((binding) => binding.id)), now);
+  return { removed: removed + routerRemoved };
 }
 
 export async function allowClient({ ip, mac, comment, ttl }) {

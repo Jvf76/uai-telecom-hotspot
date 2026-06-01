@@ -10,6 +10,8 @@ import { allowClient, cleanupExpiredBindings } from './services/mikrotik.js';
 import { listLeads, recordLead } from './services/leads.js';
 
 const publicDir = join(process.cwd(), 'public');
+const instagramFlowTtlMs = 15 * 60 * 1000;
+const instagramFlows = new Map();
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -108,6 +110,61 @@ function getClientContext(url, body = {}) {
   };
 }
 
+function normalizeMac(mac = '') {
+  return String(mac).trim().toUpperCase();
+}
+
+function createInstagramFlow(context, cpf) {
+  cleanupInstagramFlows();
+
+  const token = crypto.randomBytes(32).toString('base64url');
+  const now = Date.now();
+  instagramFlows.set(token, {
+    token,
+    cpf,
+    context: {
+      ...context,
+      mac: normalizeMac(context.mac)
+    },
+    createdAt: now,
+    openedAt: 0,
+    expiresAt: now + instagramFlowTtlMs
+  });
+
+  return token;
+}
+
+function cleanupInstagramFlows() {
+  const now = Date.now();
+  for (const [token, flow] of instagramFlows) {
+    if (flow.expiresAt <= now) instagramFlows.delete(token);
+  }
+}
+
+function getInstagramFlow(token, context) {
+  cleanupInstagramFlows();
+
+  const flow = instagramFlows.get(String(token || ''));
+  if (!flow) return null;
+
+  const requestMac = normalizeMac(context.mac);
+  const flowMac = normalizeMac(flow.context.mac);
+  if (flowMac && requestMac && flowMac !== requestMac) return null;
+  if (flow.context.ip && context.ip && flow.context.ip !== context.ip) return null;
+
+  return flow;
+}
+
+function mergeFlowContext(flow, context) {
+  flow.context = {
+    ...flow.context,
+    ...Object.fromEntries(
+      Object.entries(context).filter(([, value]) => String(value || '').trim())
+    ),
+    mac: normalizeMac(context.mac || flow.context.mac)
+  };
+}
+
 async function serveStatic(req, res, url) {
   const requested = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
   const safePath = normalize(requested).replace(/^(\.\.[/\\])+/, '');
@@ -170,12 +227,16 @@ async function handleCheckCpf(req, res, url) {
       customerName: result.customer?.razao || result.customer?.nome
     });
 
+    const instagramToken = createInstagramFlow(context, cpf);
+
     return sendJson(res, 200, {
       status: 'instagram_required',
       message: result.found
         ? `Cadastro localizado, mas não está ativo${result.status ? ` (${result.status})` : ''}.`
         : 'CPF não localizado como cliente ativo.',
-      instagramUrl: config.instagram.profileUrl
+      instagramUrl: config.instagram.profileUrl,
+      instagramToken,
+      confirmDelaySeconds: config.instagram.confirmDelaySeconds
     });
   } catch (error) {
     sendJson(res, 500, { error: error.message });
@@ -218,28 +279,30 @@ function handleAdminLogout(res) {
 }
 
 async function handleInstagramWindow(req, res, url) {
+  await readJson(req).catch(() => ({}));
+  sendJson(res, 410, {
+    error: 'Janela temporária do Instagram desativada. Use o walled garden da MikroTik.'
+  });
+}
+
+async function handleInstagramOpened(req, res, url) {
   try {
     const body = await readJson(req);
     const context = getClientContext(url, body);
+    const flow = getInstagramFlow(body.instagramToken, context);
 
-    await allowClient({
-      ip: context.ip,
-      mac: context.mac,
-      comment: 'uai-hotspot janela instagram',
-      ttl: config.access.instagramTtl
-    });
-    await recordLead({
-      ...context,
-      cpf: body.cpf || '',
-      status: 'instagram_window',
-      releaseMethod: 'instagram_window',
-      message: 'Janela temporaria para abrir Instagram'
-    });
+    if (!flow) {
+      return sendJson(res, 400, {
+        error: 'Refaça a consulta do CPF antes de abrir o Instagram.'
+      });
+    }
+
+    flow.openedAt = Date.now();
+    mergeFlowContext(flow, context);
 
     sendJson(res, 200, {
-      status: 'instagram_window',
-      message: 'Instagram liberado por 5 minutos.',
-      redirect: config.instagram.profileUrl
+      status: 'instagram_opened',
+      confirmDelaySeconds: config.instagram.confirmDelaySeconds
     });
   } catch (error) {
     sendJson(res, 500, { error: error.message });
@@ -250,25 +313,45 @@ async function handleInstagramRelease(req, res, url) {
   try {
     const body = await readJson(req);
     const context = getClientContext(url, body);
+    const flow = getInstagramFlow(body.instagramToken, context);
+
+    if (!flow?.openedAt) {
+      return sendJson(res, 400, {
+        error: 'Abra o Instagram da UAI Telecom antes de confirmar.'
+      });
+    }
+
+    const delayMs = config.instagram.confirmDelaySeconds * 1000;
+    const elapsedMs = Date.now() - flow.openedAt;
+    if (elapsedMs < delayMs) {
+      const remainingSeconds = Math.ceil((delayMs - elapsedMs) / 1000);
+      return sendJson(res, 429, {
+        error: `Aguarde ${remainingSeconds} segundos antes de confirmar.`,
+        remainingSeconds
+      });
+    }
+
+    mergeFlowContext(flow, context);
 
     await allowClient({
-      ip: context.ip,
-      mac: context.mac,
+      ip: flow.context.ip,
+      mac: flow.context.mac,
       comment: 'uai-hotspot instagram declarado',
       ttl: config.access.activeCustomerTtl
     });
     await recordLead({
-      ...context,
-      cpf: body.cpf || '',
+      ...flow.context,
+      cpf: flow.cpf || body.cpf || '',
       status: 'released',
       releaseMethod: 'instagram',
       message: 'Liberado por confirmacao de Instagram'
     });
+    instagramFlows.delete(flow.token);
 
     sendJson(res, 200, {
       status: 'released',
       message: 'Obrigado por seguir a UAI Telecom. Internet liberada.',
-      redirect: context.linkOrig || 'http://neverssl.com'
+      redirect: flow.context.linkOrig || 'http://neverssl.com'
     });
   } catch (error) {
     sendJson(res, 500, { error: error.message });
@@ -316,6 +399,10 @@ const server = http.createServer(async (req, res) => {
     return handleInstagramWindow(req, res, url);
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/instagram-opened') {
+    return handleInstagramOpened(req, res, url);
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/instagram-release') {
     return handleInstagramRelease(req, res, url);
   }
@@ -347,4 +434,5 @@ setInterval(() => {
   cleanupExpiredBindings().catch((error) => {
     console.warn(`Falha ao limpar liberacoes expiradas: ${error.message}`);
   });
+  cleanupInstagramFlows();
 }, 60 * 1000);
