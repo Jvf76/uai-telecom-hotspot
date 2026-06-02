@@ -12,6 +12,10 @@ import { listLeads, recordLead } from './services/leads.js';
 const publicDir = join(process.cwd(), 'public');
 const instagramFlowTtlMs = 15 * 60 * 1000;
 const instagramFlows = new Map();
+const browserOpenTtlMs = 5 * 60 * 1000;
+const recentBrowserOpenTtlMs = 30 * 1000;
+const recentBrowserOpenKey = 'recent-browser-open';
+const browserOpenRequests = new Map();
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -112,6 +116,37 @@ function getClientContext(url, body = {}) {
 
 function normalizeMac(mac = '') {
   return String(mac).trim().toUpperCase();
+}
+
+function clientKey(context = {}) {
+  const mac = normalizeMac(context.mac);
+  if (mac) return `mac:${mac}`;
+  if (context.ip) return `ip:${context.ip}`;
+  return '';
+}
+
+function cleanupBrowserOpenRequests() {
+  const now = Date.now();
+  for (const [key, expiresAt] of browserOpenRequests) {
+    if (expiresAt <= now) browserOpenRequests.delete(key);
+  }
+}
+
+function markBrowserOpen(context) {
+  cleanupBrowserOpenRequests();
+  const key = clientKey(context);
+  browserOpenRequests.set(recentBrowserOpenKey, Date.now() + recentBrowserOpenTtlMs);
+  if (!key) return false;
+  browserOpenRequests.set(key, Date.now() + browserOpenTtlMs);
+  return true;
+}
+
+function shouldRedirectToBrowser(url) {
+  cleanupBrowserOpenRequests();
+  if (url.searchParams.get('browser') === '1') return false;
+
+  const key = clientKey(getClientContext(url));
+  return Boolean((key && browserOpenRequests.has(key)) || browserOpenRequests.has(recentBrowserOpenKey));
 }
 
 function createInstagramFlow(context, cpf) {
@@ -285,6 +320,16 @@ async function handleInstagramWindow(req, res, url) {
   });
 }
 
+async function handleBrowserOpened(req, res, url) {
+  try {
+    const body = await readJson(req);
+    const context = getClientContext(url, body);
+    sendJson(res, 200, { ok: markBrowserOpen(context) });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 async function handleInstagramOpened(req, res, url) {
   try {
     const body = await readJson(req);
@@ -379,6 +424,12 @@ const server = http.createServer(async (req, res) => {
     return serveStatic(req, res, url);
   }
 
+  if (req.method === 'GET' && url.pathname === '/browser') {
+    req.url = '/index.html';
+    url.pathname = '/index.html';
+    return serveStatic(req, res, url);
+  }
+
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
     return handleAdminLeads(req, res);
   }
@@ -399,6 +450,10 @@ const server = http.createServer(async (req, res) => {
     return handleInstagramWindow(req, res, url);
   }
 
+  if (req.method === 'POST' && url.pathname === '/api/browser-opened') {
+    return handleBrowserOpened(req, res, url);
+  }
+
   if (req.method === 'POST' && url.pathname === '/api/instagram-opened') {
     return handleInstagramOpened(req, res, url);
   }
@@ -408,6 +463,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET') {
+    if ((url.pathname === '/' || url.pathname === '/index.html') && shouldRedirectToBrowser(url)) {
+      return sendRedirect(res, `/browser${url.search}`);
+    }
+
     return serveStatic(req, res, url);
   }
 
@@ -435,4 +494,5 @@ setInterval(() => {
     console.warn(`Falha ao limpar liberacoes expiradas: ${error.message}`);
   });
   cleanupInstagramFlows();
+  cleanupBrowserOpenRequests();
 }, 60 * 1000);

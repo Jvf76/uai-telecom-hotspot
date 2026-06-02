@@ -259,11 +259,6 @@ button,
   line-height: 1.45;
 }
 
-.release-box .primary-button {
-  margin-top: 4px;
-  text-align: center;
-}
-
 button:disabled {
   cursor: wait;
   opacity: 0.72;

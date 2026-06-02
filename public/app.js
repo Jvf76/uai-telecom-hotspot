@@ -13,18 +13,12 @@ const releaseButton = document.querySelector('#releaseButton');
 const browserLink = document.querySelector('#browserLink');
 const releaseBox = document.querySelector('#releaseBox');
 const releaseMessage = document.querySelector('#releaseMessage');
-const continueLink = document.querySelector('#continueLink');
 let instagramUrl = 'https://www.instagram.com/uaitelecom/';
 let openedInstagram = false;
 let instagramToken = '';
 let confirmDelaySeconds = 15;
 
-function isCaptivePortalBrowser() {
-  const ua = navigator.userAgent || '';
-  return /CaptivePortal|CaptiveNetwork|CaptiveNetworkSupport|wispr|NetworkConnectivity|wv\)/i.test(ua);
-}
-
-const isBrowserMode = params.get('browser') === '1' || !isCaptivePortalBrowser();
+const isBrowserMode = params.get('browser') === '1' || window.location.pathname === '/browser';
 
 function onlyDigits(value) {
   return String(value || '').replace(/\D/g, '');
@@ -62,39 +56,54 @@ function setStatus(message, type = '') {
   statusEl.className = `status ${type}`.trim();
 }
 
-function androidIntentUrl(url) {
-  const scheme = url.protocol.replace(':', '') || 'http';
-  const path = `${url.host}${url.pathname}${url.search}`;
-  return `intent://${path}#Intent;scheme=${scheme};S.browser_fallback_url=${encodeURIComponent(url.href)};end`;
-}
-
 function setupBrowserLink() {
   if (!browserLink) return;
 
   const portalUrl = new URL(window.location.href);
+  portalUrl.pathname = '/browser';
   portalUrl.searchParams.set('browser', '1');
+  portalUrl.hash = '';
   browserLink.href = portalUrl.href;
 
   cpfForm.hidden = !isBrowserMode;
   browserLink.hidden = isBrowserMode;
 
-  if (isBrowserMode) return;
+  browserLink.addEventListener('click', async (event) => {
+    event.preventDefault();
+    browserLink.href = portalUrl.href;
+    browserLink.setAttribute('aria-disabled', 'true');
 
-  if (/Android/i.test(navigator.userAgent)) {
-    browserLink.href = androidIntentUrl(portalUrl);
-    browserLink.removeAttribute('target');
-  }
+    try {
+      await Promise.race([
+        fetch('/api/browser-opened', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contextPayload()),
+          keepalive: true
+        }),
+        new Promise((resolve) => setTimeout(resolve, 500))
+      ]);
+    } catch {
+      // A navegacao ainda pode seguir pelo parametro browser=1.
+    }
+
+    if (/Android/i.test(navigator.userAgent)) {
+      const scheme = portalUrl.protocol.replace(':', '') || 'http';
+      const path = `${portalUrl.host}${portalUrl.pathname}${portalUrl.search}`;
+      window.location.href = `intent://${path}#Intent;scheme=${scheme};S.browser_fallback_url=${encodeURIComponent(portalUrl.href)};end`;
+      return;
+    }
+
+    window.location.href = portalUrl.href;
+  });
 }
 
 function showReleaseSuccess(payload = {}) {
-  const redirectUrl = payload.redirect || 'http://neverssl.com';
-
   cpfForm.hidden = true;
   instagramBox.hidden = true;
   if (browserLink) browserLink.hidden = true;
   releaseBox.hidden = false;
   releaseMessage.textContent = payload.message || 'Seu acesso foi liberado. Agora voce pode navegar normalmente.';
-  continueLink.href = redirectUrl;
   setStatus('');
 }
 

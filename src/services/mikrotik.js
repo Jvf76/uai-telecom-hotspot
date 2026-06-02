@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import net from 'node:net';
 
 const bindingsFile = join(process.cwd(), 'data', 'access-bindings.json');
 
@@ -11,6 +12,10 @@ function authHeader() {
 function restUrl(path) {
   const cleanPath = String(path).replace(/^\/+/, '');
   return new URL(cleanPath, config.mikrotik.baseUrl.endsWith('/') ? config.mikrotik.baseUrl : `${config.mikrotik.baseUrl}/`);
+}
+
+function usesRouterOsApi() {
+  return String(config.mikrotik.baseUrl || '').startsWith('api://');
 }
 
 async function mikrotikRequest(path, options = {}) {
@@ -29,6 +34,146 @@ async function mikrotikRequest(path, options = {}) {
   }
 
   return response.json();
+}
+
+function encodeApiLength(length) {
+  if (length < 0x80) return Buffer.from([length]);
+  if (length < 0x4000) return Buffer.from([(length >> 8) | 0x80, length & 0xff]);
+  if (length < 0x200000) return Buffer.from([(length >> 16) | 0xc0, (length >> 8) & 0xff, length & 0xff]);
+  if (length < 0x10000000) {
+    return Buffer.from([
+      (length >> 24) | 0xe0,
+      (length >> 16) & 0xff,
+      (length >> 8) & 0xff,
+      length & 0xff
+    ]);
+  }
+  return Buffer.from([0xf0, (length >> 24) & 0xff, (length >> 16) & 0xff, (length >> 8) & 0xff, length & 0xff]);
+}
+
+function decodeApiLength(buffer, offset) {
+  const first = buffer[offset];
+  if (first < 0x80) return { length: first, offset: offset + 1 };
+  if ((first & 0xc0) === 0x80) return { length: ((first & ~0xc0) << 8) + buffer[offset + 1], offset: offset + 2 };
+  if ((first & 0xe0) === 0xc0) {
+    return { length: ((first & ~0xe0) << 16) + (buffer[offset + 1] << 8) + buffer[offset + 2], offset: offset + 3 };
+  }
+  if ((first & 0xf0) === 0xe0) {
+    return {
+      length: ((first & ~0xf0) << 24) + (buffer[offset + 1] << 16) + (buffer[offset + 2] << 8) + buffer[offset + 3],
+      offset: offset + 4
+    };
+  }
+  return {
+    length: (buffer[offset + 1] << 24) + (buffer[offset + 2] << 16) + (buffer[offset + 3] << 8) + buffer[offset + 4],
+    offset: offset + 5
+  };
+}
+
+function encodeApiWord(value) {
+  const data = Buffer.from(value, 'utf8');
+  return Buffer.concat([encodeApiLength(data.length), data]);
+}
+
+function encodeApiSentence(words) {
+  return Buffer.concat([...words.map(encodeApiWord), Buffer.from([0])]);
+}
+
+function parseApiWords(words) {
+  const result = {};
+  for (const word of words.slice(1)) {
+    const match = word.match(/^=([^=]+)=(.*)$/);
+    if (match) result[match[1]] = match[2];
+  }
+  return result;
+}
+
+class ApiParser {
+  buffer = Buffer.alloc(0);
+  current = [];
+  sentences = [];
+
+  push(chunk) {
+    this.buffer = Buffer.concat([this.buffer, chunk]);
+    let offset = 0;
+
+    while (offset < this.buffer.length) {
+      const start = offset;
+      const decoded = decodeApiLength(this.buffer, offset);
+      if (decoded.offset > this.buffer.length || decoded.offset + decoded.length > this.buffer.length) {
+        offset = start;
+        break;
+      }
+
+      offset = decoded.offset;
+      if (decoded.length === 0) {
+        this.sentences.push(this.current);
+        this.current = [];
+        continue;
+      }
+
+      this.current.push(this.buffer.subarray(offset, offset + decoded.length).toString('utf8'));
+      offset += decoded.length;
+    }
+
+    this.buffer = this.buffer.subarray(offset);
+  }
+}
+
+async function routerOsApiRequest(words) {
+  const url = new URL(config.mikrotik.baseUrl);
+  const socket = net.createConnection({
+    host: url.hostname,
+    port: Number(url.port || 8728),
+    timeout: 8000
+  });
+  const parser = new ApiParser();
+  socket.on('data', (chunk) => parser.push(chunk));
+
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once('connect', resolve);
+      socket.once('error', reject);
+      socket.once('timeout', () => reject(new Error('Timeout conectando na API MikroTik')));
+    });
+
+    socket.write(encodeApiSentence(['/login', `=name=${config.mikrotik.user}`, `=password=${config.mikrotik.password}`]));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    socket.write(encodeApiSentence(words));
+
+    const deadline = Date.now() + 8000;
+    while (Date.now() < deadline) {
+      const commandSentences = parser.sentences.slice(1);
+      if (commandSentences.some((sentence) => ['!done', '!empty', '!trap', '!fatal'].includes(sentence[0]))) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    const loginSentence = parser.sentences.shift();
+    if (!loginSentence || loginSentence[0] !== '!done') {
+      throw new Error(`Falha ao autenticar na API MikroTik: ${(loginSentence || []).join(' ')}`);
+    }
+
+    const records = [];
+    let done = {};
+    for (const sentence of parser.sentences) {
+      if (process.env.MIKROTIK_DEBUG_API === 'true') console.error('api sentence', sentence);
+      const type = sentence[0];
+      if (type === '!re') records.push(parseApiWords(sentence));
+      if (type === '!done') {
+        done = parseApiWords(sentence);
+        return { records, done };
+      }
+      if (type === '!empty') return { records, done };
+      if (type === '!trap' || type === '!fatal') {
+        const details = parseApiWords(sentence);
+        throw new Error(details.message || sentence.join(' '));
+      }
+    }
+
+    throw new Error('Timeout aguardando resposta da API MikroTik');
+  } finally {
+    socket.end();
+  }
 }
 
 function durationToMs(value = '') {
@@ -64,6 +209,11 @@ async function trackBinding(binding) {
 }
 
 async function removeBinding(id) {
+  if (usesRouterOsApi()) {
+    await routerOsApiRequest(['/ip/hotspot/ip-binding/remove', `=.id=${id}`]);
+    return;
+  }
+
   await mikrotikRequest('/ip/hotspot/ip-binding/remove', {
     method: 'POST',
     body: JSON.stringify({ '.id': id })
@@ -71,6 +221,14 @@ async function removeBinding(id) {
 }
 
 async function listBindings() {
+  if (usesRouterOsApi()) {
+    const { records } = await routerOsApiRequest(['/ip/hotspot/ip-binding/print']);
+    return records.map((record) => ({
+      ...record,
+      '.id': record['.id']
+    }));
+  }
+
   return mikrotikRequest('/ip/hotspot/ip-binding');
 }
 
@@ -166,10 +324,26 @@ export async function allowClient({ ip, mac, comment, ttl }) {
   if (mac) payload['mac-address'] = mac;
   payload.server = 'hotspot-uai';
 
-  const result = await mikrotikRequest('/ip/hotspot/ip-binding', {
-    method: 'PUT',
-    body: JSON.stringify(payload)
-  });
+  let result;
+  if (usesRouterOsApi()) {
+    const words = [
+      '/ip/hotspot/ip-binding/add',
+      ...Object.entries(payload).map(([key, value]) => `=${key}=${value}`)
+    ];
+    const { done } = await routerOsApiRequest(words);
+    result = { '.id': done.ret || '' };
+
+    if (!result['.id']) {
+      const bindings = await listBindings();
+      const match = bindings.find((binding) => binding.comment === payload.comment);
+      if (match) result = match;
+    }
+  } else {
+    result = await mikrotikRequest('/ip/hotspot/ip-binding', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  }
 
   await trackBinding({
     id: result['.id'],

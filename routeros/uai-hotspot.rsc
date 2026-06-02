@@ -8,16 +8,11 @@
 /interface bridge
 add name=bridge-hotspot comment="UAI Telecom Hotspot LAN"
 
+# Por seguranca, o hotspot usa apenas a ether2 por padrao.
+# Adicione outras portas somente se tiver certeza de que elas nao estao ligadas
+# ao switch/rede principal.
 /interface bridge port
 add bridge=bridge-hotspot interface=ether2
-add bridge=bridge-hotspot interface=ether3
-add bridge=bridge-hotspot interface=ether4
-add bridge=bridge-hotspot interface=ether5
-add bridge=bridge-hotspot interface=ether6
-add bridge=bridge-hotspot interface=ether7
-add bridge=bridge-hotspot interface=ether8
-add bridge=bridge-hotspot interface=ether9
-add bridge=bridge-hotspot interface=ether10
 
 /ip dhcp-client
 add interface=ether1 disabled=no comment="WAN recebe IP do roteador principal"
