@@ -8,6 +8,16 @@ import { isValidCpf, onlyDigits } from './utils/cpf.js';
 import { findCustomerByCpf } from './services/ixc.js';
 import { allowClient, cleanupExpiredBindings } from './services/mikrotik.js';
 import { listLeads, recordLead } from './services/leads.js';
+import {
+  deleteDevice,
+  deleteLocation,
+  getDevice,
+  listDevices,
+  listLocations,
+  saveDevice,
+  saveLocation
+} from './services/equipment.js';
+import { runDeviceCommand } from './services/ssh.js';
 
 const publicDir = join(process.cwd(), 'public');
 const instagramFlowTtlMs = 15 * 60 * 1000;
@@ -108,6 +118,12 @@ function getClientContext(url, body = {}) {
     ip: body.ip || url.searchParams.get('ip') || url.searchParams.get('client_ip') || '',
     mac: body.mac || url.searchParams.get('mac') || url.searchParams.get('client_mac') || '',
     linkOrig: body.linkOrig || url.searchParams.get('link-orig') || url.searchParams.get('link_orig') || '',
+    location: body.location || body.local || body.hotspot
+      || url.searchParams.get('location')
+      || url.searchParams.get('local')
+      || url.searchParams.get('hotspot')
+      || config.hotspot.location
+      || '',
     name: body.name || '',
     phone: body.phone || '',
     email: body.email || ''
@@ -288,6 +304,137 @@ async function handleAdminLeads(req, res) {
   }
 }
 
+async function handleAdminLocations(req, res) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    if (req.method === 'GET') {
+      return sendJson(res, 200, { locations: await listLocations() });
+    }
+
+    const body = await readJson(req);
+    return sendJson(res, 200, { location: await saveLocation(body) });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminLocationDelete(req, res, id) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    sendJson(res, 200, await deleteLocation(id));
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminDevices(req, res) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    if (req.method === 'GET') {
+      return sendJson(res, 200, { devices: await listDevices() });
+    }
+
+    const body = await readJson(req);
+    return sendJson(res, 200, { device: await saveDevice(body) });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminGeocode(req, res, url) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    const address = String(url.searchParams.get('address') || '').trim();
+    if (!address) {
+      return sendJson(res, 400, { error: 'Informe o endereco.' });
+    }
+
+    const queries = [address];
+    if (!/brasil|brazil/i.test(address)) queries.push(`${address}, Brasil`);
+
+    let first = null;
+    for (const query of queries) {
+      const geocodeUrl = new URL('https://nominatim.openstreetmap.org/search');
+      geocodeUrl.searchParams.set('format', 'json');
+      geocodeUrl.searchParams.set('limit', '1');
+      geocodeUrl.searchParams.set('addressdetails', '1');
+      geocodeUrl.searchParams.set('countrycodes', 'br');
+      geocodeUrl.searchParams.set('q', query);
+
+      const response = await fetch(geocodeUrl, {
+        headers: {
+          'User-Agent': 'uai-telecom-hotspot/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        return sendJson(res, 502, { error: 'Falha ao consultar o mapa.' });
+      }
+
+      const results = await response.json();
+      first = results[0];
+      if (first) break;
+    }
+
+    if (!first) {
+      return sendJson(res, 404, { error: 'Endereco nao encontrado.' });
+    }
+
+    sendJson(res, 200, {
+      location: {
+        latitude: Number.parseFloat(first.lat).toFixed(6),
+        longitude: Number.parseFloat(first.lon).toFixed(6),
+        displayName: first.display_name || address
+      }
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminDeviceDelete(req, res, id) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    sendJson(res, 200, await deleteDevice(id));
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminDeviceReboot(req, res, id) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    const device = await getDevice(id);
+    const result = await runDeviceCommand(device, device.rebootCommand || '/system reboot', 15000);
+    sendJson(res, 200, {
+      ok: true,
+      message: 'Comando de reboot enviado.',
+      result
+    });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
+async function handleAdminDeviceConsole(req, res, id) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    const body = await readJson(req);
+    const device = await getDevice(id);
+    const result = await runDeviceCommand(device, body.command, 25000);
+    sendJson(res, 200, { ok: true, result });
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 async function handleAdminLogin(req, res) {
   try {
     const body = await readJson(req);
@@ -432,6 +579,36 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
     return handleAdminLeads(req, res);
+  }
+
+  if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/admin/locations') {
+    return handleAdminLocations(req, res);
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/locations/')) {
+    return handleAdminLocationDelete(req, res, decodeURIComponent(url.pathname.split('/').pop()));
+  }
+
+  if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/admin/devices') {
+    return handleAdminDevices(req, res);
+  }
+
+  if (req.method === 'GET' && url.pathname === '/api/admin/geocode') {
+    return handleAdminGeocode(req, res, url);
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/devices/')) {
+    return handleAdminDeviceDelete(req, res, decodeURIComponent(url.pathname.split('/').pop()));
+  }
+
+  const rebootMatch = url.pathname.match(/^\/api\/admin\/devices\/([^/]+)\/reboot$/);
+  if (req.method === 'POST' && rebootMatch) {
+    return handleAdminDeviceReboot(req, res, decodeURIComponent(rebootMatch[1]));
+  }
+
+  const consoleMatch = url.pathname.match(/^\/api\/admin\/devices\/([^/]+)\/console$/);
+  if (req.method === 'POST' && consoleMatch) {
+    return handleAdminDeviceConsole(req, res, decodeURIComponent(consoleMatch[1]));
   }
 
   if (req.method === 'POST' && url.pathname === '/api/admin/login') {

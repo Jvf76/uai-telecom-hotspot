@@ -44,6 +44,7 @@ function contextPayload(extra = {}) {
     ip: params.get('ip') || params.get('client_ip') || '',
     mac: params.get('mac') || params.get('client_mac') || '',
     linkOrig: params.get('link-orig') || params.get('link_orig') || '',
+    location: params.get('location') || params.get('local') || params.get('hotspot') || '',
     name: nameInput?.value || '',
     phone: phoneInput?.value || '',
     email: emailInput?.value || '',

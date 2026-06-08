@@ -42,6 +42,9 @@ export const config = {
     profileUrl: process.env.INSTAGRAM_PROFILE_URL || 'https://www.instagram.com/uaitelecom/',
     confirmDelaySeconds: Number.isFinite(instagramConfirmDelaySeconds) ? Math.max(0, instagramConfirmDelaySeconds) : 15
   },
+  hotspot: {
+    location: process.env.HOTSPOT_LOCATION || ''
+  },
   admin: {
     user: process.env.ADMIN_USER || 'admin',
     password: process.env.ADMIN_PASSWORD || 'troque-esta-senha',

@@ -11,53 +11,256 @@
       <header class="topbar">
         <div>
           <span class="eyebrow">UAI Telecom</span>
-          <h1>Leads do Hotspot</h1>
+          <h1>Wi-Fi Marketing</h1>
+          <p class="topbar-copy">Dados consentidos do captive portal para acompanhar acessos, perfil e ativações por local.</p>
         </div>
         <div class="top-actions">
-          <button id="exportCsv" type="button">Exportar CSV</button>
+          <button id="exportCsv" type="button">Exportar planilha</button>
           <button id="logout" type="button">Sair</button>
         </div>
       </header>
 
-      <section class="metrics" aria-label="Resumo">
-        <article>
-          <span>Total</span>
-          <strong id="totalCount">0</strong>
-        </article>
-        <article>
-          <span>Clientes liberados</span>
-          <strong id="releasedCount">0</strong>
-        </article>
-        <article>
-          <span>Instagram</span>
-          <strong id="instagramCount">0</strong>
-        </article>
+      <nav class="tabs" aria-label="Painel">
+        <button class="tab-button active" type="button" data-tab="leadsPanel">Leads</button>
+        <button class="tab-button" type="button" data-tab="locationsPanel">Locais</button>
+        <button class="tab-button" type="button" data-tab="devicesPanel">Equipamentos</button>
+      </nav>
+
+      <section id="leadsPanel" class="tab-panel active">
+        <section class="metrics" aria-label="Resumo">
+          <article>
+            <span>Total</span>
+            <strong id="totalCount">0</strong>
+          </article>
+          <article>
+            <span>Clientes liberados</span>
+            <strong id="releasedCount">0</strong>
+          </article>
+          <article>
+            <span>Pendentes</span>
+            <strong id="pendingCount">0</strong>
+          </article>
+          <article>
+            <span>Locais</span>
+            <strong id="locationCount">0</strong>
+          </article>
+        </section>
+
+        <section class="toolbar">
+          <select id="locationFilter" aria-label="Filtrar por local">
+            <option value="">Todos os locais</option>
+          </select>
+          <input id="search" type="search" placeholder="Buscar por nome, CPF, telefone, email, IP ou MAC">
+          <button id="refresh" type="button">Atualizar</button>
+        </section>
+
+        <section class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Nome</th>
+                <th>Telefone</th>
+                <th>Email</th>
+                <th>CPF</th>
+                <th>Local</th>
+                <th>Status</th>
+                <th>IP/MAC</th>
+              </tr>
+            </thead>
+            <tbody id="leadsBody">
+              <tr>
+                <td colspan="8">Carregando...</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
       </section>
 
-      <section class="toolbar">
-        <input id="search" type="search" placeholder="Buscar por nome, CPF, telefone, email, IP ou MAC">
-        <button id="refresh" type="button">Atualizar</button>
+      <section id="locationsPanel" class="tab-panel">
+        <section class="admin-grid">
+          <form id="locationForm" class="panel-card">
+            <h2>Adicionar local</h2>
+            <input id="locationId" type="hidden">
+            <label>
+              Nome do local
+              <input id="locationName" required placeholder="Ex: Loja Centro">
+            </label>
+            <label>
+              Endereço
+              <input id="locationAddress" placeholder="Rua, número, bairro, cidade">
+            </label>
+            <label>
+              Latitude, longitude
+              <input id="locationCoordinates" inputmode="decimal" placeholder="-18.9186, -48.2772">
+            </label>
+            <label>
+              Observações
+              <textarea id="locationNotes" rows="3" placeholder="Referência, responsável, horário..."></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="clearLocation" type="button">Limpar</button>
+              <button id="lookupLocation" type="button">Buscar no mapa</button>
+              <button type="submit">Salvar local</button>
+            </div>
+          </form>
+
+          <section class="panel-card map-card">
+            <h2>Mapa</h2>
+            <iframe id="locationMap" title="Mapa do local" loading="lazy"></iframe>
+            <a id="openMap" class="map-link" href="https://www.openstreetmap.org" target="_blank" rel="noreferrer">Abrir mapa</a>
+          </section>
+        </section>
+
+        <section class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Local</th>
+                <th>Endereço</th>
+                <th>Coordenadas</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="locationsBody">
+              <tr>
+                <td colspan="4">Carregando...</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </section>
 
-      <section class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Data</th>
-              <th>Nome</th>
-              <th>Telefone</th>
-              <th>Email</th>
-              <th>CPF</th>
-              <th>Status</th>
-              <th>IP/MAC</th>
-            </tr>
-          </thead>
-          <tbody id="leadsBody">
-            <tr>
-              <td colspan="7">Carregando...</td>
-            </tr>
-          </tbody>
-        </table>
+      <section id="devicesPanel" class="tab-panel">
+        <section class="admin-grid single-grid">
+          <form id="deviceForm" class="panel-card">
+            <h2>Adicionar MikroTik</h2>
+            <input id="deviceId" type="hidden">
+            <div class="form-row">
+              <label>
+                Nome
+                <input id="deviceName" required placeholder="Ex: MikroTik Loja Centro">
+              </label>
+              <label>
+                Local
+                <select id="deviceLocation">
+                  <option value="">Sem local</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                Tipo de acesso
+                <select id="deviceConnectionType">
+                  <option value="ssh">SSH</option>
+                  <option value="routeros_api">API RouterOS</option>
+                </select>
+              </label>
+              <label>
+                IP ou host
+                <input id="deviceHost" required placeholder="192.168.30.108">
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                Porta
+                <input id="devicePort" inputmode="numeric" placeholder="22 ou 2012" value="22">
+              </label>
+              <label>
+                Usuário
+                <input id="deviceUser" required placeholder="admin">
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                Senha
+                <input id="devicePassword" type="password" autocomplete="new-password" placeholder="Manter atual se vazio">
+              </label>
+              <label>
+                Comando de reboot
+                <input id="deviceRebootCommand" placeholder="/system reboot" value="/system reboot">
+              </label>
+            </div>
+            <label>
+              Chave privada SSH
+              <textarea id="devicePrivateKey" rows="4" placeholder="Opcional. Manter atual se vazio."></textarea>
+            </label>
+            <label>
+              Observações
+              <textarea id="deviceNotes" rows="3" placeholder="Modelo, porta WAN, acesso, responsável..."></textarea>
+            </label>
+            <div class="form-actions">
+              <button id="clearDevice" type="button">Limpar</button>
+              <button type="submit">Salvar equipamento</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="devices-workspace">
+          <section class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Equipamento</th>
+                  <th>Local</th>
+                  <th>SSH</th>
+                  <th>Acesso</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="devicesBody">
+                <tr>
+                  <td colspan="5">Carregando...</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="consoleCard" class="console-window is-hidden">
+            <div id="consoleHeader" class="console-header">
+              <div>
+                <h2>Console SSH</h2>
+                <small id="selectedConsoleDeviceName">Selecione um equipamento</small>
+              </div>
+              <button id="closeConsole" type="button">Fechar</button>
+            </div>
+            <div class="console-body">
+              <select id="consoleDevice">
+                <option value="">Selecione o equipamento</option>
+              </select>
+              <pre id="consoleOutput">Aguardando comando...</pre>
+              <div class="console-input-row">
+                <span>&gt;</span>
+                <input id="consoleCommand" autocomplete="off" placeholder="/ip address print">
+                <button id="runConsole" type="button">Executar</button>
+              </div>
+            </div>
+          </section>
+        </section>
+      </section>
+
+      <section id="locationDevicesModal" class="modal-backdrop is-hidden">
+        <div class="modal-card">
+          <div class="panel-title-row">
+            <div>
+              <h2>Equipamentos do local</h2>
+              <small id="locationDevicesTitle">Selecione um local</small>
+            </div>
+            <button id="closeLocationDevices" type="button">Fechar</button>
+          </div>
+          <div id="locationDevicesList" class="device-list"></div>
+          <label>
+            Vincular equipamento existente
+            <select id="linkDeviceSelect">
+              <option value="">Selecione um equipamento</option>
+            </select>
+          </label>
+          <div class="form-actions">
+            <button id="linkDeviceToLocation" type="button">Vincular</button>
+            <button id="newDeviceForLocation" type="button">Inserir novo equipamento</button>
+          </div>
+        </div>
       </section>
     </main>
 
