@@ -225,13 +225,26 @@ function renderLeads() {
   leadsBody.innerHTML = rows.map((lead) => `
     <tr>
       <td>${escapeHtml(formatDate(lead.createdAt))}</td>
-      <td>${escapeHtml(lead.name || '-')}<small>${escapeHtml(lead.customerName || '')}</small></td>
-      <td>${escapeHtml(formatPhone(lead.phone) || '-')}</td>
-      <td>${escapeHtml(lead.email || '-')}</td>
+      <td class="client-cell">
+        <strong>${escapeHtml(lead.name || lead.customerName || '-')}</strong>
+        <small>${escapeHtml(lead.customerName && lead.customerName !== lead.name ? lead.customerName : '')}</small>
+      </td>
+      <td class="contact-cell">
+        <span>${escapeHtml(formatPhone(lead.phone) || '-')}</span>
+        <small>${escapeHtml(lead.email || '')}</small>
+      </td>
       <td>${escapeHtml(formatCpf(lead.cpf) || '-')}</td>
       <td>${escapeHtml(leadLocation(lead))}</td>
-      <td><span class="badge ${statusClass(lead)}">${escapeHtml(statusLabel(lead))}</span><small>${escapeHtml(lead.message || '')}</small></td>
+      <td class="status-cell">
+        <span class="badge ${statusClass(lead)}">${escapeHtml(statusLabel(lead))}</span>
+        <small>${escapeHtml(lead.message || '')}</small>
+      </td>
       <td>${escapeHtml(lead.ip || '-')}<small>${escapeHtml(lead.mac || '')}</small></td>
+      <td>
+        <div class="row-actions">
+          <button class="danger" type="button" data-action="delete-lead" data-id="${escapeHtml(lead.id)}">Excluir</button>
+        </div>
+      </td>
     </tr>
   `).join('');
 }
@@ -699,6 +712,17 @@ searchInput.addEventListener('input', renderLeads);
 locationFilter.addEventListener('change', renderLeads);
 refreshButton.addEventListener('click', loadLeads);
 exportButton.addEventListener('click', exportCsv);
+leadsBody.addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-action="delete-lead"]');
+  if (!button) return;
+
+  const lead = leads.find((item) => item.id === button.dataset.id);
+  const label = lead?.name || lead?.customerName || lead?.cpf || 'este cliente';
+  if (!window.confirm(`Excluir os dados de ${label}?`)) return;
+
+  await requestJson(`/api/admin/leads/${encodeURIComponent(button.dataset.id)}`, { method: 'DELETE' });
+  await loadLeads();
+});
 clearLocationButton.addEventListener('click', clearLocationForm);
 clearDeviceButton.addEventListener('click', clearDeviceForm);
 locationForm.addEventListener('submit', saveLocation);

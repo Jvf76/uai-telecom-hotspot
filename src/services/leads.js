@@ -1,4 +1,4 @@
-import { mkdir, readFile, appendFile } from 'node:fs/promises';
+import { mkdir, readFile, appendFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { onlyDigits } from '../utils/cpf.js';
 
@@ -157,6 +157,20 @@ function rowToLead(row = {}) {
   };
 }
 
+function deleteWhereForLead(lead = {}) {
+  if (lead.cpf) return { sql: 'cpf = ?', value: lead.cpf };
+  if (lead.mac) return { sql: 'mac = ?', value: lead.mac };
+  if (lead.ip) return { sql: 'ip = ?', value: lead.ip };
+  return { sql: 'id = ?', value: lead.id };
+}
+
+function sameLeadGroup(lead, target) {
+  if (target.cpf) return lead.cpf === target.cpf;
+  if (target.mac) return lead.mac === target.mac;
+  if (target.ip) return lead.ip === target.ip;
+  return lead.id === target.id;
+}
+
 async function appendJsonlFallback(lead) {
   await mkdir(dirname(leadsFile), { recursive: true });
   await appendFile(leadsFile, `${JSON.stringify(lead)}\n`, 'utf8');
@@ -173,6 +187,39 @@ export async function recordLead(input = {}) {
 
   await appendJsonlFallback(lead);
   return lead;
+}
+
+export async function deleteLeadGroup(id) {
+  const cleanId = sanitize(id);
+  if (!cleanId) throw new Error('Lead invalido.');
+
+  const db = await getDb();
+
+  if (db) {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(cleanId);
+    if (!lead) return { deleted: 0 };
+
+    const where = deleteWhereForLead(rowToLead(lead));
+    const result = db.prepare(`DELETE FROM leads WHERE ${where.sql}`).run(where.value);
+    return { deleted: result.changes || 0 };
+  }
+
+  try {
+    const text = await readFile(leadsFile, 'utf8');
+    const leads = text
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map((line) => normalizeLead(JSON.parse(line)));
+    const target = leads.find((lead) => lead.id === cleanId);
+    if (!target) return { deleted: 0 };
+
+    const remaining = leads.filter((lead) => !sameLeadGroup(lead, target));
+    await writeFile(leadsFile, remaining.map((lead) => JSON.stringify(lead)).join('\n') + (remaining.length ? '\n' : ''), 'utf8');
+    return { deleted: leads.length - remaining.length };
+  } catch (error) {
+    if (error.code === 'ENOENT') return { deleted: 0 };
+    throw error;
+  }
 }
 
 export async function listLeads() {

@@ -7,7 +7,7 @@ import { config } from './config.js';
 import { isValidCpf, onlyDigits } from './utils/cpf.js';
 import { findCustomerByCpf } from './services/ixc.js';
 import { allowClient, cleanupExpiredBindings } from './services/mikrotik.js';
-import { listLeads, recordLead } from './services/leads.js';
+import { deleteLeadGroup, listLeads, recordLead } from './services/leads.js';
 import {
   deleteDevice,
   deleteLocation,
@@ -304,6 +304,16 @@ async function handleAdminLeads(req, res) {
   }
 }
 
+async function handleAdminLeadDelete(req, res, id) {
+  if (!requireAdmin(req, res, 'json')) return;
+
+  try {
+    sendJson(res, 200, await deleteLeadGroup(id));
+  } catch (error) {
+    sendJson(res, 500, { error: error.message });
+  }
+}
+
 async function handleAdminLocations(req, res) {
   if (!requireAdmin(req, res, 'json')) return;
 
@@ -579,6 +589,10 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === 'GET' && url.pathname === '/api/admin/leads') {
     return handleAdminLeads(req, res);
+  }
+
+  if (req.method === 'DELETE' && url.pathname.startsWith('/api/admin/leads/')) {
+    return handleAdminLeadDelete(req, res, decodeURIComponent(url.pathname.split('/').pop()));
   }
 
   if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/api/admin/locations') {

@@ -429,7 +429,7 @@ pre {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 900px;
+  min-width: 980px;
 }
 
 th,
@@ -453,16 +453,53 @@ td small {
   margin-top: 3px;
 }
 
+.client-cell {
+  min-width: 180px;
+}
+
+.client-cell strong,
+.contact-cell span {
+  display: block;
+}
+
+.contact-cell {
+  min-width: 190px;
+}
+
+.contact-cell span,
+td:nth-child(4),
+td:nth-child(7) {
+  white-space: nowrap;
+}
+
+.contact-cell small {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+}
+
+.status-cell {
+  min-width: 170px;
+}
+
+.status-cell small {
+  max-width: 230px;
+  line-height: 1.35;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 26px;
+  min-width: 112px;
   border-radius: 999px;
   padding: 0 10px;
   background: #2a2a31;
   color: #fff;
   font-size: 12px;
   font-weight: 800;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .badge.released {
