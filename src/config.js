@@ -17,6 +17,12 @@ if (existsSync(envFile)) {
 
 const instagramConfirmDelaySeconds = Number.parseInt(process.env.INSTAGRAM_CONFIRM_DELAY_SECONDS || '15', 10);
 
+function normalizePath(value, fallback) {
+  const raw = String(value || fallback).trim();
+  const clean = `/${raw.replace(/^\/+|\/+$/g, '')}`;
+  return clean === '/' ? fallback : clean;
+}
+
 export const config = {
   port: Number(process.env.PORT || 3000),
   publicBaseUrl: process.env.PUBLIC_BASE_URL || 'http://10.10.10.2:3000',
@@ -48,6 +54,8 @@ export const config = {
   admin: {
     user: process.env.ADMIN_USER || 'admin',
     password: process.env.ADMIN_PASSWORD || 'troque-esta-senha',
-    sessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || 'troque-esta-senha'
+    sessionSecret: process.env.ADMIN_SESSION_SECRET || process.env.ADMIN_PASSWORD || 'troque-esta-senha',
+    path: normalizePath(process.env.ADMIN_PATH, '/admin'),
+    basicAuthEnabled: String(process.env.ADMIN_BASIC_AUTH_ENABLED || 'false').toLowerCase() === 'true'
   }
 };

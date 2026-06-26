@@ -2,6 +2,7 @@ const form = document.querySelector('#loginForm');
 const statusEl = document.querySelector('#loginStatus');
 const userInput = document.querySelector('#user');
 const passwordInput = document.querySelector('#password');
+const adminPath = window.location.pathname.replace(/\/login\/?$/, '') || '/admin';
 
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -20,7 +21,7 @@ form.addEventListener('submit', async (event) => {
 
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || 'Falha ao entrar.');
-    window.location.href = '/admin';
+    window.location.href = adminPath;
   } catch (error) {
     statusEl.textContent = error.message;
     statusEl.className = 'login-status error';

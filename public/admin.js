@@ -33,6 +33,8 @@ const linkDeviceSelect = document.querySelector('#linkDeviceSelect');
 const linkDeviceToLocationButton = document.querySelector('#linkDeviceToLocation');
 const newDeviceForLocationButton = document.querySelector('#newDeviceForLocation');
 const closeLocationDevicesButton = document.querySelector('#closeLocationDevices');
+const adminPath = window.location.pathname.replace(/\/$/, '') || '/admin';
+const adminLoginPath = `${adminPath}/login`;
 
 let leads = [];
 let locations = [];
@@ -87,7 +89,7 @@ async function requestJson(url, options = {}) {
   });
 
   if (response.status === 401) {
-    window.location.href = '/admin/login';
+    window.location.href = adminLoginPath;
     return null;
   }
 
@@ -832,7 +834,7 @@ devicesBody.addEventListener('click', async (event) => {
 
 logoutButton.addEventListener('click', async () => {
   await fetch('/api/admin/logout', { method: 'POST' });
-  window.location.href = '/admin/login';
+  window.location.href = adminLoginPath;
 });
 
 loadAdminData().catch((error) => {

@@ -26,6 +26,10 @@ const browserOpenTtlMs = 5 * 60 * 1000;
 const recentBrowserOpenTtlMs = 30 * 1000;
 const recentBrowserOpenKey = 'recent-browser-open';
 const browserOpenRequests = new Map();
+const adminLoginAttempts = new Map();
+const adminLoginWindowMs = 15 * 60 * 1000;
+const adminLoginBlockMs = 10 * 60 * 1000;
+const maxAdminLoginAttempts = 5;
 const contentTypes = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -43,6 +47,60 @@ function sendJson(res, status, payload) {
 function sendRedirect(res, location) {
   res.writeHead(302, { Location: location });
   res.end();
+}
+
+function secureEquals(left, right) {
+  const leftBuffer = Buffer.from(String(left || ''));
+  const rightBuffer = Buffer.from(String(right || ''));
+  return leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function adminLoginPath() {
+  return `${config.admin.path}/login`;
+}
+
+function cookieSecurity(req) {
+  const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim();
+  return proto === 'https' || req.socket.encrypted ? '; Secure' : '';
+}
+
+function clientAddress(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')
+    .split(',')[0]
+    .trim() || 'unknown';
+}
+
+function getAdminLoginAttempt(req) {
+  const key = clientAddress(req);
+  const now = Date.now();
+  const attempt = adminLoginAttempts.get(key);
+
+  if (!attempt || attempt.resetAt <= now) {
+    const fresh = { count: 0, resetAt: now + adminLoginWindowMs, blockedUntil: 0 };
+    adminLoginAttempts.set(key, fresh);
+    return { key, attempt: fresh };
+  }
+
+  return { key, attempt };
+}
+
+function registerAdminLoginFailure(req) {
+  const { attempt } = getAdminLoginAttempt(req);
+  attempt.count += 1;
+  if (attempt.count >= maxAdminLoginAttempts) {
+    attempt.blockedUntil = Date.now() + adminLoginBlockMs;
+  }
+}
+
+function clearAdminLoginFailures(req) {
+  adminLoginAttempts.delete(clientAddress(req));
+}
+
+function adminLoginBlocked(req) {
+  const { attempt } = getAdminLoginAttempt(req);
+  const remainingMs = attempt.blockedUntil - Date.now();
+  if (remainingMs <= 0) return 0;
+  return Math.ceil(remainingMs / 1000);
 }
 
 function parseCookies(req) {
@@ -90,10 +148,11 @@ function isAdmin(req) {
     }
   }
 
+  if (!config.admin.basicAuthEnabled) return false;
   const header = req.headers.authorization || '';
   if (!header.startsWith('Basic ')) return false;
   const credentials = Buffer.from(header.slice(6), 'base64').toString('utf8');
-  return credentials === `${config.admin.user}:${config.admin.password}`;
+  return secureEquals(credentials, `${config.admin.user}:${config.admin.password}`);
 }
 
 function requireAdmin(req, res, mode = 'page') {
@@ -102,7 +161,7 @@ function requireAdmin(req, res, mode = 'page') {
     sendJson(res, 401, { error: 'Sessao expirada. Faça login novamente.' });
     return false;
   }
-  sendRedirect(res, '/admin/login');
+  sendRedirect(res, adminLoginPath());
   return false;
 }
 
@@ -447,14 +506,23 @@ async function handleAdminDeviceConsole(req, res, id) {
 
 async function handleAdminLogin(req, res) {
   try {
+    const blockedSeconds = adminLoginBlocked(req);
+    if (blockedSeconds) {
+      return sendJson(res, 429, {
+        error: `Muitas tentativas de login. Tente novamente em ${blockedSeconds} segundos.`
+      });
+    }
+
     const body = await readJson(req);
-    if (body.user !== config.admin.user || body.password !== config.admin.password) {
+    if (!secureEquals(body.user, config.admin.user) || !secureEquals(body.password, config.admin.password)) {
+      registerAdminLoginFailure(req);
       return sendJson(res, 401, { error: 'Usuario ou senha invalidos.' });
     }
 
+    clearAdminLoginFailures(req);
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
-      'Set-Cookie': `uai_admin=${encodeURIComponent(createAdminSession())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800`
+      'Set-Cookie': `uai_admin=${encodeURIComponent(createAdminSession())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=28800${cookieSecurity(req)}`
     });
     res.end(JSON.stringify({ ok: true }));
   } catch (error) {
@@ -462,10 +530,10 @@ async function handleAdminLogin(req, res) {
   }
 }
 
-function handleAdminLogout(res) {
+function handleAdminLogout(req, res) {
   res.writeHead(200, {
     'Content-Type': 'application/json; charset=utf-8',
-    'Set-Cookie': 'uai_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'
+    'Set-Cookie': `uai_admin=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${cookieSecurity(req)}`
   });
   res.end(JSON.stringify({ ok: true }));
 }
@@ -562,20 +630,22 @@ async function handleInstagramRelease(req, res, url) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const adminPath = config.admin.path;
+  const adminLogin = adminLoginPath();
 
   if (req.method === 'GET' && url.pathname === '/health') {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (req.method === 'GET' && url.pathname === '/admin') {
+  if (req.method === 'GET' && url.pathname === adminPath) {
     if (!requireAdmin(req, res)) return;
     req.url = '/admin.html';
     url.pathname = '/admin.html';
     return serveStatic(req, res, url);
   }
 
-  if (req.method === 'GET' && url.pathname === '/admin/login') {
-    if (isAdmin(req)) return sendRedirect(res, '/admin');
+  if (req.method === 'GET' && url.pathname === adminLogin) {
+    if (isAdmin(req)) return sendRedirect(res, adminPath);
     req.url = '/admin-login.html';
     url.pathname = '/admin-login.html';
     return serveStatic(req, res, url);
@@ -630,7 +700,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
-    return handleAdminLogout(res);
+    return handleAdminLogout(req, res);
   }
 
   if (req.method === 'POST' && url.pathname === '/api/check-cpf') {
@@ -654,6 +724,10 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET') {
+    if (url.pathname === '/admin.html' || url.pathname === '/admin-login.html') {
+      return sendJson(res, 404, { error: 'Arquivo não encontrado' });
+    }
+
     if ((url.pathname === '/' || url.pathname === '/index.html') && shouldRedirectToBrowser(url)) {
       return sendRedirect(res, `/browser${url.search}`);
     }
